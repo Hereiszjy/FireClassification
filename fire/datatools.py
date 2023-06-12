@@ -27,8 +27,6 @@ def getFileNames(file_dir, tail_list=['.png','.jpg','.JPG','.PNG']):
         return L
 
 
-
-
 ######## dataloader
 
 class TensorDatasetTrainClassify(Dataset):
@@ -134,9 +132,56 @@ class TensorDatasetTestClassify(Dataset):
     def __len__(self):
         return len(self.train_jpg)
 
+# 双头输入分类,目前主要应用在offtake场景
+class TrainClassify_2head(Dataset):
+    _print_times = 0
+    def __init__(self, train_jpg, label_type, label_path, log_classname=True, transform=None):
+        self.train_jpg = train_jpg
+        self.label_type = label_type
+        self.label_path = label_path
+        self.transform = transform
+        self.log_classname = log_classname
+
+        self.label_dict = {}
+        self.getLabels()
+        self.cate_dirs = []
+
+    def getLabels(self):
+
+        # 双端输入的分类任务
+        if self.label_type == "2HEAD_CSV":
+            df = pd.read_csv(self.label_path)
+            for index, row in df.iterrows():
+                img_path = row['t0']
+                self.label_dict[img_path] = row["label"]
+        else:
+            raise Exception("[ERROR] In datatools.py getLabel() reimplement needed. ")
+        
+
+
+    def __getitem__(self, index):
+
+        #img = Image.open(self.train_jpg[index]).convert('RGB')
+        imgPath = self.train_jpg[index]
+        img = cv2.imread(imgPath)
+        img_t1_Path = str(imgPath).replace('t0', 't1')
+        img_t1 = cv2.imread(img_t1_Path)
+
+        if self.transform is not None:
+            img = self.transform(img)
+            img_t1 = self.transform(img_t1)
+
+        y = self.label_dict[self.train_jpg[index]]
+
+        # y_onehot = [0,0]
+        # y_onehot[y] = 1
+
+        return img, y, self.train_jpg[index]
+        
+    def __len__(self):
+        return len(self.train_jpg)
 
 ###### 3. get data loader 
-
 
 def getNormorlize(model_name):
     if model_name in ['mobilenetv2','mobilenetv3']:
